@@ -4,8 +4,8 @@
 
 
 // HC-SR04 Ultrasonic
-#define TRIGGER_PIN 9
-#define ECHO_PIN 10
+#define TRIGGER_PIN 2
+#define ECHO_PIN 3
 
 HCSR04 hc(TRIGGER_PIN, ECHO_PIN);
 
@@ -124,11 +124,11 @@ void stateManager(unsigned long ct) {
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-  myStepper.setMaxSpeed(1000);  // Vitesse max en pas/seconde
+  myStepper.setMaxSpeed(500);  // Vitesse max en pas/seconde
   myStepper.setAcceleration(100); // Accélération en pas/seconde²
 	myStepper.setSpeed(200); // Vitesse constante en pas/seconde
-	myStepper.moveTo(100000); // Position cible
-  button.setup(PIN_INPUT, INPUT_PULLUP, true);
+	myStepper.moveTo(2038); // Position cible
+
   pinMode(TRIGGER_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   lcd.begin();
@@ -139,7 +139,7 @@ void setup() {
     lcd.setCursor(0, 0);
     lcd.print("2206160      ");
     lcd.setCursor(0, 1);
-    lcd.print("Labo 4A      ");
+    lcd.print("Labo 4a      ");
     
 
   } // end of while
@@ -152,6 +152,13 @@ void loop() {
   Serial.print("Distance:");
   Serial.println(distance);
   
+  if (myStepper.distanceToGo() == 0) 
+		myStepper.moveTo(-myStepper.currentPosition());
+
+	// Faire tourner le moteur d'un pas
+  // Il faut appeler cette fonction dans le loop sinon le moteur ne tourne pas
+	myStepper.run();
+
   stateManager(currentTime);
 
 } // end of loop
