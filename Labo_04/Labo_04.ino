@@ -1,8 +1,30 @@
+#include <AccelStepper.h>
+#include <LCD_I2C.h>
+
+// LCD
+LCD_I2C lcd(0x27, 16, 2); // Default address of most PCF8574 modules, change according
+
+// Définir le type de moteur, les broches IN1-IN3-IN2-IN4
+#define MOTOR_INTERFACE_TYPE 4
+
+#define IN_1 8
+#define IN_2 9
+#define IN_3 10
+#define IN_4 11
+
+// Crée une instance
+// Attention : L’ordre des broches (IN1, IN3, IN2, IN4) est spécifique au 28BYJ-48.
+AccelStepper myStepper(MOTOR_INTERFACE_TYPE, IN_1, IN_3, IN_2, IN_4);
+
 enum AppState {STOP, STATE_A};
 
 AppState appState = STOP;
 
 unsigned long currentTime = 0;
+unsigned long previousTime = 0;
+int interval = 100;
+const int timePassed = 5000;
+unsigned long start;
 
 // Les pragma region permettent de créer des zones de code fermable
 #pragma region Modèles
@@ -39,7 +61,7 @@ void xState(unsigned long cT) {
 
     firstTime = true;
   }
-}
+} // end of xState
 
 // Modèle de tâche qui ne retourne aucune valeur.
 void xTask(unsigned long ct) {
@@ -54,7 +76,7 @@ void xTask(unsigned long ct) {
   
   // Faire le code de la tâche ici
   
-}
+} // end of xTask
 
 // Modèle de tâche avec retour de valeur.
 // Exemple d'utilisation :
@@ -77,7 +99,7 @@ int xTaskWithReturn(unsigned long ct) {
   lastResult = result;
   
   return result;  
-}
+} // end of xTaskWithReturn
 
 #pragma endregion
 
@@ -87,22 +109,38 @@ void stateManager(unsigned long ct) {
     case STOP:
       
       break;
-  }
-}
+  } // end of switch
+} // end of stateManager
 
 #pragma region setup-loop
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
+  myStepper.setMaxSpeed(1000);  // Vitesse max en pas/seconde
+  myStepper.setAcceleration(100); // Accélération en pas/seconde²
+	myStepper.setSpeed(200); // Vitesse constante en pas/seconde
+	myStepper.moveTo(100000); // Position cible
+  button.setup(PIN_INPUT, INPUT_PULLUP, true);
+  lcd.begin();
+  lcd.backlight();
 
-}
+  while (millis() <= 2000) {
+
+    lcd.setCursor(0, 0);
+    lcd.print("2206160      ");
+    lcd.setCursor(0, 1);
+    lcd.print("Labo 4A      ");
+    
+
+  } // end of while
+} // end of setup
 
 void loop() {
   currentTime = millis();
   
   stateManager(currentTime);
 
-}
+} // end of loop
 #pragma endregion
 
 // 12 ms incrémenter chaque 1 degree
