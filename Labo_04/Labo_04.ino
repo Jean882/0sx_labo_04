@@ -1,5 +1,13 @@
 #include <AccelStepper.h>
 #include <LCD_I2C.h>
+#include <HCSR04.h>
+
+
+// HC-SR04 Ultrasonic
+#define TRIGGER_PIN 9
+#define ECHO_PIN 10
+
+HCSR04 hc(TRIGGER_PIN, ECHO_PIN);
 
 // LCD
 LCD_I2C lcd(0x27, 16, 2); // Default address of most PCF8574 modules, change according
@@ -121,6 +129,8 @@ void setup() {
 	myStepper.setSpeed(200); // Vitesse constante en pas/seconde
 	myStepper.moveTo(100000); // Position cible
   button.setup(PIN_INPUT, INPUT_PULLUP, true);
+  pinMode(TRIGGER_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
   lcd.begin();
   lcd.backlight();
 
@@ -137,6 +147,16 @@ void setup() {
 
 void loop() {
   currentTime = millis();
+
+  float distance = hc.dist();
+  Serial.print("Distance:");
+  Serial.println(distance);
+
+  digitalWrite(TRIGGER_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIGGER_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIGGER_PIN, LOW);
   
   stateManager(currentTime);
 
