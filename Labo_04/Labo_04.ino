@@ -24,7 +24,7 @@ LCD_I2C lcd(0x27, 16, 2); // Default address of most PCF8574 modules, change acc
 // Attention : L’ordre des broches (IN1, IN3, IN2, IN4) est spécifique au 28BYJ-48.
 AccelStepper myStepper(MOTOR_INTERFACE_TYPE, IN_1, IN_3, IN_2, IN_4);
 
-enum AppState {STOP, STATE_A};
+enum AppState {isSTOP, OPENING, isOPEN, CLOSING};
 
 AppState appState = STOP;
 
@@ -114,11 +114,28 @@ int xTaskWithReturn(unsigned long ct) {
 void stateManager(unsigned long ct) {
   // Adapter selon votre situation!
   switch (appState) {
-    case STOP:
+    case isSTOP:
+
+      appstate = OPENING;
+    break;
+    case: OPENING
+
+      appstate = isOPEN;
+    break;
+    case: isOPEN
+
+      appstate = CLOSING;
+    break;
+    case: CLOSING
       
-      break;
+      appstate = isSTOP;
+    break;
   } // end of switch
 } // end of stateManager
+
+void lcdTask() {
+
+} // end of lcdTask
 
 #pragma region setup-loop
 void setup() {
