@@ -4,13 +4,14 @@
 #include <HCSR04.h>
 
 // Define Pins
-#define TRIGGER_PIN 6
-#define ECHO_PIN 7
+#define TRIGGER_PIN 2
+#define ECHO_PIN 3
 #define IN_1 8
 #define IN_2 9
 #define IN_3 10
 #define IN_4 11
 #define MOTOR_INTERFACE_TYPE 4
+
 
 AccelStepper myStepper(MOTOR_INTERFACE_TYPE, IN_1, IN_3, IN_2, IN_4);
 LCD_I2C lcd(0x27, 16, 2);
@@ -31,11 +32,13 @@ const int distanceThresholdOpen = 30;
 const int distanceThresholdClose = 60;
 const unsigned long measureInterval = 50;
 const unsigned long serialInterval = 100;
+const unsigned long minAngle = 10;
+const unsigned long maxAngle = 170;
 
 #pragma region
 
 int getCurrentAngle() { // return map angle
-    return map(myStepper.currentPosition(), closedPosition, openPosition, 10, 170);
+    return map(myStepper.currentPosition(), closedPosition, openPosition, minAngle, maxAngle);
 }
 
 double measureDistance() { // return distance
@@ -65,17 +68,6 @@ void displayLCD(double distance) {
 }
 
 void displaySerial(double distance) {
-    switch (state) {
-        case CLOSED:
-            Serial.print("CLOSED");
-            break;
-        case OPEN:
-            Serial.print("OPEN");
-            break;
-        default:
-            Serial.print("TRANSITION");
-            break;
-    }
     Serial.print("etd:2206160");
     Serial.print(",dist:");
     Serial.print(distance);
@@ -153,12 +145,17 @@ void loop() {
     }
 
     myStepper.run();
-    displayLCD(distance);
 
     if (currentTime - lastSerialTime >= serialInterval) {
         lastSerialTime = currentTime;
+        displayLCD(distance);        
         displaySerial(distance);
     }
+
+    //if (currentTime - lastSerialTime >= serialInterval) {
+    //    lastSerialTime = currentTime;
+        
+    //}
 }
 
 #pragma endregion
