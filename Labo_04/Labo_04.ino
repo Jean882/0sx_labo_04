@@ -1,157 +1,137 @@
 #include <AccelStepper.h>
+#include <Wire.h>
 #include <LCD_I2C.h>
 #include <HCSR04.h>
 
-
-// HC-SR04 Ultrasonic
-#define TRIGGER_PIN 2
-#define ECHO_PIN 3
-
-HCSR04 hc(TRIGGER_PIN, ECHO_PIN);
-
-// LCD
-LCD_I2C lcd(0x27, 16, 2); // Default address of most PCF8574 modules, change according
-
-// Définir le type de moteur, les broches IN1-IN3-IN2-IN4
-#define MOTOR_INTERFACE_TYPE 4
-
+// Define Pins
+#define TRIGGER_PIN 6
+#define ECHO_PIN 7
 #define IN_1 8
 #define IN_2 9
 #define IN_3 10
 #define IN_4 11
+#define MOTOR_INTERFACE_TYPE 4
 
-// Crée une instance
-// Attention : L’ordre des broches (IN1, IN3, IN2, IN4) est spécifique au 28BYJ-48.
 AccelStepper myStepper(MOTOR_INTERFACE_TYPE, IN_1, IN_3, IN_2, IN_4);
+LCD_I2C lcd(0x27, 16, 2);
+HCSR04 distanceSensor(TRIGGER_PIN, ECHO_PIN);
 
-enum AppState {isSTOP, OPENING, isOPEN, CLOSING};
+// States
+enum DoorState {CLOSED, OPENING, OPEN, CLOSING};
+DoorState state = CLOSED;
 
-AppState appState = STOP;
+// Global variables
+unsigned long lastMeasureTime = 0;
+unsigned long lastSerialTime = 0;
+const long closedPosition = 0;
+const long openPosition = 1000;
 
-unsigned long currentTime = 0;
-unsigned long previousTime = 0;
-int interval = 100;
-const int timePassed = 5000;
-unsigned long start;
+// Constant variables
+const int distanceThresholdOpen = 30;
+const int distanceThresholdClose = 60;
+const unsigned long measureInterval = 50;
+const unsigned long serialInterval = 100;
 
-// Les pragma region permettent de créer des zones de code fermable
-#pragma region Modèles
+#pragma region
 
-void xState(unsigned long cT) {
-  static unsigned long lastTime = 0;
-  const int rate = 500;
+int getCurrentAngle() { // return map angle
+    return map(myStepper.currentPosition(), closedPosition, openPosition, 10, 170);
+}
 
-  static bool firstTime = true;
+double measureDistance() { // return distance
+    return distanceSensor.dist();
+}
 
-  if (firstTime) { // drapeau ouvert
-    // Code d'initialisation de l'état
-    // Reset tes trucs
-    // Exemples : Angle de référence, initialiser le lastTime;
+void displayLCD(double distance) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Dist: ");
+    lcd.print(distance);
+    lcd.print(" cm");
 
-    firstTime = false; // ferme drapeau
-    return;
-  }
+    lcd.setCursor(0, 1);
+    switch (state) {
+        case CLOSED:
+            lcd.print("Closed");
+            break;
+        case OPEN:
+            lcd.print("Open");
+            break;
+        default:
+            lcd.print("Deg: ");
+            lcd.print(getCurrentAngle());
+            break;
+    }
+}
 
-  if (cT - lastTime < rate) return;
-
-  lastTime = cT;
-
-  // Code de job à faire
-
-  // Il s'agit de la transition qui permet de sortir de l'état
-  // Qu'est-ce qui fait que l'on sort de l'état?
-  bool transition = false;
-
-  // Il est possible d'avoir plusieurs transitions
-
-  if (transition) {
-    // Code pour terminer la tâche
-
-    firstTime = true;
-  }
-} // end of xState
-
-// Modèle de tâche qui ne retourne aucune valeur.
-void xTask(unsigned long ct) {
-  static unsigned long lastTime = 0;
-  unsigned long rate = 500;
-  
-  if (ct - lastTime < rate) {
-    return;
-  }
-  
-  lastTime = ct;
-  
-  // Faire le code de la tâche ici
-  
-} // end of xTask
-
-// Modèle de tâche avec retour de valeur.
-// Exemple d'utilisation :
-//   - Mesure de distance, température, etc.
-int xTaskWithReturn(unsigned long ct) {
-  static unsigned long lastTime = 0;
-  unsigned long rate = 500;
-  static int lastResult = 0;
-  int result = 0;
-  
-  if (ct - lastTime < rate) {
-    return result;
-  }
-  
-  lastTime = ct;
-  
-  // Faire le code de la tâche ici
-  result = 1;
-  
-  lastResult = result;
-  
-  return result;  
-} // end of xTaskWithReturn
+void displaySerial(double distance) {
+    switch (state) {
+        case CLOSED:
+            Serial.print("CLOSED");
+            break;
+        case OPEN:
+            Serial.print("OPEN");
+            break;
+        default:
+            Serial.print("TRANSITION");
+            break;
+    }
+    Serial.print("etd:2206160");
+    Serial.print(",dist:");
+    Serial.print(distance);
+    Serial.print(",deg:");
+    Serial.println(getCurrentAngle());
+}
 
 #pragma endregion
 
-void stateManager(unsigned long ct) {
-  // Adapter selon votre situation!
-  switch (appState) {
-    case isSTOP:
+void updateState(double distance) {
+    switch (state) {
+        case CLOSED:
+            if (distance < distanceThresholdOpen) {
+                state = OPENING;
+                myStepper.enableOutputs();
+                myStepper.moveTo(openPosition);
+            }
+            break;
 
-      appstate = OPENING;
-    break;
-    case: OPENING
+        case OPENING:
+            if (myStepper.distanceToGo() == 0) {
+                state = OPEN;
+                myStepper.disableOutputs();
+            }
+            break;
 
-      appstate = isOPEN;
-    break;
-    case: isOPEN
+        case OPEN:
+            if (distance > distanceThresholdClose) {
+                state = CLOSING;
+                myStepper.enableOutputs();
+                myStepper.moveTo(closedPosition);
+            }
+            break;
 
-      appstate = CLOSING;
-    break;
-    case: CLOSING
-      
-      appstate = isSTOP;
-    break;
-  } // end of switch
-} // end of stateManager
-
-void lcdTask() {
-
-} // end of lcdTask
+        case CLOSING:
+            if (myStepper.distanceToGo() == 0) {
+                state = CLOSED;
+                myStepper.disableOutputs();
+            }
+            break;
+    }
+}
 
 #pragma region setup-loop
+
 void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(115200);
-  myStepper.setMaxSpeed(500);  // Vitesse max en pas/seconde
-  myStepper.setAcceleration(100); // Accélération en pas/seconde²
-	myStepper.setSpeed(200); // Vitesse constante en pas/seconde
-	myStepper.moveTo(2038); // Position cible
+    Serial.begin(115200);
+    lcd.begin();
+    lcd.backlight();
 
-  pinMode(TRIGGER_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-  lcd.begin();
-  lcd.backlight();
+    myStepper.setMaxSpeed(500);
+    myStepper.setAcceleration(250);
+    myStepper.setCurrentPosition(closedPosition);
+    myStepper.disableOutputs();
 
-  while (millis() <= 2000) {
+    while (millis() <= 2000) {
 
     lcd.setCursor(0, 0);
     lcd.print("2206160      ");
@@ -159,29 +139,26 @@ void setup() {
     lcd.print("Labo 4a      ");
     
 
-  } // end of while
-} // end of setup
+  }
+}
 
 void loop() {
-  currentTime = millis();
+    unsigned long currentTime = millis();
+    static double distance = 0;
 
-  float distance = hc.dist();
-  Serial.print("Distance:");
-  Serial.println(distance);
-  
-  if (myStepper.distanceToGo() == 0) 
-		myStepper.moveTo(-myStepper.currentPosition());
+    if (currentTime - lastMeasureTime >= measureInterval) {
+        lastMeasureTime = currentTime;
+        distance = measureDistance();
+        updateState(distance);
+    }
 
-	// Faire tourner le moteur d'un pas
-  // Il faut appeler cette fonction dans le loop sinon le moteur ne tourne pas
-	myStepper.run();
+    myStepper.run();
+    displayLCD(distance);
 
-  stateManager(currentTime);
+    if (currentTime - lastSerialTime >= serialInterval) {
+        lastSerialTime = currentTime;
+        displaySerial(distance);
+    }
+}
 
-} // end of loop
 #pragma endregion
-
-// 12 ms incrémenter chaque 1 degree
-// if () angle++
-// if (transition) 
-// suggestion lcd : variable globale message, fonction mettre a jour message
