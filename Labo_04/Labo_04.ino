@@ -55,14 +55,15 @@ void displayLCD(double distance) {
     lcd.setCursor(0, 1);
     switch (state) {
         case CLOSED:
-            lcd.print("Closed");
+            lcd.print("Porte: Closed");
             break;
         case OPEN:
-            lcd.print("Open");
+            lcd.print("Porte: Open");
             break;
         default:
-            lcd.print("Deg: ");
+            lcd.print("Porte: ");
             lcd.print(getCurrentAngle());
+            lcd.print(" deg");
             break;
     }
 }
@@ -152,10 +153,6 @@ void loop() {
         displaySerial(distance);
     }
 
-    //if (currentTime - lastSerialTime >= serialInterval) {
-    //    lastSerialTime = currentTime;
-        
-    //}
 }
 
 #pragma endregion
